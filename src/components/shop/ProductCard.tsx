@@ -3,93 +3,121 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Heart, ShoppingCart, Check, Star, RotateCcw, Eye } from 'lucide-react';
+import { Heart, ShoppingCart, Check, Star, Eye } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { addToWishlist, removeFromWishlist } from '@/store/wishlistSlice';
 import { addToCart } from '@/store/cartSlice';
-import { formatPrice } from '@/lib/utils';
 
-interface ProductOption {
-  name: string;
-  values: string[];
+interface ProductVariant {
+  id?: string;
+  title?: string;
+  size?: string;
+  color?: string;
+  price?: number;
+  stock?: number;
+  inventory_quantity?: number;
+  prices?: { amount: number }[];
+  options?: Record<string, string>;
 }
 
 interface Product {
-  id: string;
-  title: string;
+  id?: string;
+  _id?: string;
+  name?: string;
+  title?: string;
+  slug?: string;
+  handle?: string;
   description?: string;
   thumbnail?: string;
-  handle?: string;
   images?: { url: string }[];
-  price?: { amount: number; currency_code?: string };
-  original_price?: number;
-  variants?: { prices?: { amount: number }[]; inventory_quantity?: number; options?: Record<string, string> }[];
-  options?: ProductOption[];
-  collection?: { title: string; handle?: string };
-  tags?: { id?: string; value: string }[];
-  rating?: number;
-  review_count?: number;
+  variants?: ProductVariant[];
+  options?: { name: string; values: string[] }[];
+  category?: string;
+  tags?: string[] | { id?: string; value: string }[];
+  ratings?: { avg?: number; count?: number };
+  price?: { amount?: number };
 }
 
 interface ProductCardProps {
-  product: Product;
-  onQuickView?: (product: Product) => void;
+  product: {
+    id?: string;
+    _id?: string;
+    name?: string;
+    title?: string;
+    slug?: string;
+    handle?: string;
+    description?: string;
+    thumbnail?: string;
+    images?: { url: string }[];
+    variants?: ProductVariant[];
+    options?: { name: string; values: string[] }[];
+    category?: string;
+    tags?: string[] | { id?: string; value: string }[];
+    ratings?: { avg?: number; count?: number };
+    price?: { amount?: number };
+  };
   showCompare?: boolean;
   isComparing?: boolean;
-  onCompareToggle?: (product: Product) => void;
+  onCompareToggle?: (product: any) => void;
+  onQuickView?: (product: any) => void;
 }
 
-export function ProductCard({ product, onQuickView, showCompare, isComparing, onCompareToggle }: ProductCardProps) {
+export function ProductCard({ product, onQuickView }: ProductCardProps) {
   const dispatch = useAppDispatch();
   const wishlistItems = useAppSelector((state) => state.wishlist.items);
   const [addedToCart, setAddedToCart] = useState(false);
   const [showHoverImage, setShowHoverImage] = useState(false);
 
-  const isInWishlist = wishlistItems.some((item) => item.id === product.id);
-  
+  const productId = product.id || product._id || '';
+  const isInWishlist = wishlistItems.some((item) => item.id === productId);
+
   const getPrice = () => {
-    if (product.price?.amount) return product.price.amount;
-    if (product.variants?.[0]?.prices?.[0]?.amount) return product.variants[0].prices[0].amount;
-    return 0;
+    return product.variants?.[0]?.price || product.price?.amount || 0;
   };
 
   const price = getPrice();
-  const originalPrice = product.original_price || price * 1.25;
-  const hasDiscount = originalPrice > price;
-  const discount = hasDiscount ? Math.round((1 - price / originalPrice) * 100) : 0;
-  
-  const images = [product.thumbnail];
-  if (product.images) {
-    product.images.forEach((img) => {
-      if (!images.includes(img.url)) images.push(img.url);
-    });
+  const images = product.images?.map(img => img.url) || [];
+  if (product.thumbnail && !images.includes(product.thumbnail)) {
+    images.unshift(product.thumbnail);
   }
-  
-  const imageUrl = images[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600';
+  if (images.length === 0) {
+    images.push('https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600');
+  }
+
+  const imageUrl = images[0];
   const hoverImageUrl = images[1] || imageUrl;
-  const title = product.title || 'Product';
-  const stock = product.variants?.[0]?.inventory_quantity || 0;
+  const stock = product.variants?.[0]?.stock || 0;
   const isOutOfStock = stock === 0;
-  const isBestseller = product.tags?.some((t) => t.value === 'bestseller');
-  const rating = product.rating || 4.5;
-  const reviewCount = product.review_count || 12;
+  const tagValues = product.tags?.map(t => typeof t === 'string' ? t : t.value) || [];
+  const isBestseller = tagValues.includes('bestseller') || tagValues.includes('best-seller');
+  const isFeatured = tagValues.includes('featured');
+  const rating = product.ratings?.avg || 4.5;
+  const reviewCount = product.ratings?.count || 0;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (isOutOfStock) return;
-    
+
     dispatch(addToCart({
       product: {
-        id: product.id,
-        title: product.title,
+        id: productId,
+        title: product.title || product.name || '',
+        handle: product.handle || product.slug,
         thumbnail: product.thumbnail,
-        handle: product.handle,
-        price: product.price,
+        images: product.images,
+        price: product.variants?.[0]?.price || product.price?.amount,
       },
       quantity: 1,
+      variant: product.variants?.[0] ? {
+        id: product.variants[0].id,
+        title: product.variants[0].size || product.variants[0].color,
+        size: product.variants[0].size,
+        color: product.variants[0].color,
+        price: product.variants[0].price,
+      } : undefined,
     }));
-    
+
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
   };
@@ -98,30 +126,26 @@ export function ProductCard({ product, onQuickView, showCompare, isComparing, on
     e.preventDefault();
     e.stopPropagation();
     if (isInWishlist) {
-      dispatch(removeFromWishlist(product.id));
+      dispatch(removeFromWishlist(productId));
     } else {
-      dispatch(addToWishlist({ id: product.id, title, thumbnail: imageUrl, handle: product.handle }));
+      dispatch(addToWishlist({ id: productId, title: product.title || product.name || '', handle: product.handle || product.slug, thumbnail: imageUrl }));
     }
   };
 
-  const handleCompare = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onCompareToggle?.(product);
-  };
+  const formatPrice = (amount: number) => '₦' + amount.toLocaleString('en-NG');
 
   return (
     <div className="group relative">
-      <div 
+      <div
         className="relative overflow-hidden rounded-xl bg-muted/30"
         onMouseEnter={() => setShowHoverImage(true)}
         onMouseLeave={() => setShowHoverImage(false)}
       >
-        <Link href={`/products/${product.handle}`}>
+        <Link href={`/products/${product.slug || product.handle || productId}`}>
           <div className="relative aspect-[3/4] bg-muted/50">
             <Image
               src={imageUrl}
-              alt={title}
+              alt={product.title || product.name || 'Product'}
               fill
               className={`object-cover transition-opacity duration-500 ${showHoverImage ? 'opacity-0' : 'opacity-100'}`}
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -129,25 +153,17 @@ export function ProductCard({ product, onQuickView, showCompare, isComparing, on
             {hoverImageUrl && (
               <Image
                 src={hoverImageUrl}
-                alt={`${title} hover`}
+                alt={`${product.title || product.name || 'Product'} hover`}
                 fill
                 className={`object-cover absolute inset-0 transition-opacity duration-500 ${showHoverImage ? 'opacity-100' : 'opacity-0'}`}
                 sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               />
             )}
-            
+
             {isOutOfStock && (
               <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
                 <span className="bg-gray-900 text-white px-4 py-2 text-sm font-medium">
                   Out of Stock
-                </span>
-              </div>
-            )}
-
-            {discount > 0 && (
-              <div className="absolute top-3 left-3">
-                <span className="bg-red-500 text-white px-2 py-1 text-xs font-medium">
-                  -{discount}%
                 </span>
               </div>
             )}
@@ -198,15 +214,15 @@ export function ProductCard({ product, onQuickView, showCompare, isComparing, on
               <button
                 onClick={handleWishlist}
                 className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-md ${
-                  isInWishlist 
-                    ? 'bg-red-500 text-white' 
+                  isInWishlist
+                    ? 'bg-red-500 text-white'
                     : 'bg-white text-gray-700 hover:bg-red-500 hover:text-white'
                 }`}
                 aria-label={isInWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
               >
                 <Heart className={`h-4 w-4 ${isInWishlist ? 'fill-current' : ''}`} />
               </button>
-              
+
               {onQuickView && (
                 <button
                   onClick={(e) => { e.preventDefault(); onQuickView(product); }}
@@ -216,29 +232,15 @@ export function ProductCard({ product, onQuickView, showCompare, isComparing, on
                   <Eye className="h-4 w-4" />
                 </button>
               )}
-              
-              {showCompare && (
-                <button
-                  onClick={handleCompare}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-md ${
-                    isComparing 
-                      ? 'bg-gray-900 text-white' 
-                      : 'bg-white text-gray-700 hover:bg-gray-900 hover:text-white'
-                  }`}
-                  aria-label={isComparing ? 'Remove from compare' : 'Add to compare'}
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
-              )}
             </div>
           </div>
         </Link>
       </div>
 
       <div className="mt-4 text-center">
-        <Link href={`/products/${product.handle}`}>
+        <Link href={`/products/${product.slug}`}>
           <h3 className="font-medium text-gray-900 hover:text-gray-600 transition-colors line-clamp-2">
-            {title}
+            {product.name}
           </h3>
         </Link>
 
@@ -248,9 +250,9 @@ export function ProductCard({ product, onQuickView, showCompare, isComparing, on
               <Star
                 key={i}
                 className={`h-3.5 w-3.5 ${
-                  i < Math.floor(rating) 
-                    ? 'fill-yellow-400 text-yellow-400' 
-                    : i < rating 
+                  i < Math.floor(rating)
+                    ? 'fill-yellow-400 text-yellow-400'
+                    : i < rating
                     ? 'fill-yellow-400/50 text-yellow-400'
                     : 'text-gray-300'
                 }`}
@@ -262,62 +264,39 @@ export function ProductCard({ product, onQuickView, showCompare, isComparing, on
 
         <div className="flex items-center justify-center gap-2 mt-2">
           <span className="font-semibold text-gray-900">{formatPrice(price)}</span>
-          {hasDiscount && (
-            <span className="text-sm text-gray-500 line-through">
-              {formatPrice(originalPrice)}
-            </span>
-          )}
         </div>
-
-
       </div>
     </div>
   );
 }
 
-export function ProductListCard({ 
-  product, 
-  onCompareToggle,
-  isComparing,
-  showCompare 
-}: { 
-  product: Product; 
-  onCompareToggle?: (product: Product) => void;
-  isComparing?: boolean;
-  showCompare?: boolean;
-}) {
+export function ProductListCard({ product }: { product: ProductCardProps['product'] }) {
   const dispatch = useAppDispatch();
   const wishlistItems = useAppSelector((state) => state.wishlist.items);
   const [addedToCart, setAddedToCart] = useState(false);
 
-  const isInWishlist = wishlistItems.some((item) => item.id === product.id);
-  
-  const getPrice = () => {
-    if (product.price?.amount) return product.price.amount;
-    if (product.variants?.[0]?.prices?.[0]?.amount) return product.variants[0].prices[0].amount;
-    return 0;
-  };
+  const productId = product.id || product._id || '';
+  const isInWishlist = wishlistItems.some((item) => item.id === productId);
 
-  const price = getPrice();
-  const originalPrice = product.original_price || price * 1.25;
-  const hasDiscount = originalPrice > price;
-  const discount = hasDiscount ? Math.round((1 - price / originalPrice) * 100) : 0;
+  const price = product.variants?.[0]?.price || product.price?.amount || 0;
   const imageUrl = product.thumbnail || product.images?.[0]?.url || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600';
-  const title = product.title || 'Product';
-  const stock = product.variants?.[0]?.inventory_quantity || 0;
+  const stock = product.variants?.[0]?.stock || product.variants?.[0]?.inventory_quantity || 0;
   const isOutOfStock = stock === 0;
-  const rating = product.rating || 4.5;
-  const reviewCount = product.review_count || 12;
+  const rating = product.ratings?.avg || 4.5;
+  const reviewCount = product.ratings?.count || 0;
+
+  const formatPrice = (amount: number) => '₦' + amount.toLocaleString('en-NG');
 
   const handleAddToCart = () => {
     if (isOutOfStock) return;
     dispatch(addToCart({
       product: {
-        id: product.id,
-        title: product.title,
+        id: productId,
+        title: product.title || product.name || '',
+        handle: product.handle || product.slug,
         thumbnail: product.thumbnail,
-        handle: product.handle,
-        price: product.price,
+        images: product.images,
+        price: product.variants?.[0]?.price || product.price?.amount,
       },
       quantity: 1,
     }));
@@ -327,37 +306,29 @@ export function ProductListCard({
 
   const handleWishlist = () => {
     if (isInWishlist) {
-      dispatch(removeFromWishlist(product.id));
+      dispatch(removeFromWishlist(productId));
     } else {
-      dispatch(addToWishlist({ id: product.id, title, thumbnail: imageUrl, handle: product.handle }));
+      dispatch(addToWishlist({ id: productId, title: product.title || product.name || '', handle: product.handle || product.slug, thumbnail: imageUrl }));
     }
   };
 
   return (
     <div className={`group relative flex flex-col md:flex-row gap-6 md:gap-8 p-4 md:p-6 bg-white border border-gray-100 rounded-xl hover:shadow-lg transition-all duration-300 ${isOutOfStock ? 'opacity-60' : ''}`}>
       <div className="relative w-full md:w-60 flex-shrink-0">
-        <Link href={`/products/${product.handle}`}>
+        <Link href={`/products/${product.slug || product.handle || productId}`}>
           <div className="relative aspect-[3/4] md:aspect-square rounded-lg overflow-hidden bg-gray-100">
             <Image
               src={imageUrl}
-              alt={title}
+              alt={product.title || product.name || 'Product'}
               fill
               className="object-cover hover:scale-105 transition-transform duration-500"
               sizes="(max-width: 768px) 100vw, 240px"
             />
-            
+
             {isOutOfStock && (
               <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
                 <span className="bg-gray-900 text-white px-4 py-2 text-sm font-medium">
                   Out of Stock
-                </span>
-              </div>
-            )}
-
-            {discount > 0 && (
-              <div className="absolute top-3 left-3">
-                <span className="bg-red-500 text-white px-2 py-1 text-xs font-medium">
-                  -{discount}%
                 </span>
               </div>
             )}
@@ -367,14 +338,14 @@ export function ProductListCard({
 
       <div className="flex-1 flex flex-col justify-center">
         <div className="mb-3">
-          {product.collection && (
+          {product.category && (
             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">
-              {product.collection.title}
+              {product.category}
             </p>
           )}
-          <Link href={`/products/${product.handle}`}>
+          <Link href={`/products/${product.slug}`}>
             <h3 className="text-lg font-semibold text-gray-900 hover:text-gray-600 transition-colors">
-              {title}
+              {product.name}
             </h3>
           </Link>
 
@@ -384,9 +355,9 @@ export function ProductListCard({
                 <Star
                   key={i}
                   className={`h-3.5 w-3.5 ${
-                    i < Math.floor(rating) 
-                      ? 'fill-yellow-400 text-yellow-400' 
-                      : i < rating 
+                    i < Math.floor(rating)
+                      ? 'fill-yellow-400 text-yellow-400'
+                      : i < rating
                       ? 'fill-yellow-400/50 text-yellow-400'
                       : 'text-gray-300'
                   }`}
@@ -398,19 +369,12 @@ export function ProductListCard({
         </div>
 
         <p className="text-sm text-gray-600 line-clamp-2 mb-4">
-          {product.description || 'Premium quality product from our collection. Made with the finest materials for lasting comfort and style.'}
+          {product.description || 'Premium quality product from our collection.'}
         </p>
 
         <div className="flex items-center gap-3 mb-2">
           <span className="text-xl font-bold text-gray-900">{formatPrice(price)}</span>
-          {hasDiscount && (
-            <span className="text-sm text-gray-500 line-through">
-              {formatPrice(originalPrice)}
-            </span>
-          )}
         </div>
-
-
 
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -438,49 +402,32 @@ export function ProductListCard({
               </span>
             )}
           </button>
-          
+
           <button
             onClick={handleWishlist}
             className={`w-11 h-11 rounded-lg border flex items-center justify-center transition-all ${
-              isInWishlist 
-                ? 'bg-red-500 text-white border-red-500' 
+              isInWishlist
+                ? 'bg-red-500 text-white border-red-500'
                 : 'border-gray-300 text-gray-700 hover:border-gray-900 hover:text-gray-900'
             }`}
           >
             <Heart className={`h-5 w-5 ${isInWishlist ? 'fill-current' : ''}`} />
           </button>
-          
-          {showCompare && (
-            <button
-              onClick={() => onCompareToggle?.(product)}
-              className={`w-11 h-11 rounded-lg border flex items-center justify-center transition-all ${
-                isComparing 
-                  ? 'bg-gray-900 text-white border-gray-900' 
-                  : 'border-gray-300 text-gray-700 hover:border-gray-900 hover:text-gray-900'
-              }`}
-            >
-              <RotateCcw className="h-5 w-5" />
-            </button>
-          )}
         </div>
       </div>
     </div>
   );
 }
 
-export function ProductListView({ 
-  products, 
-  loading, 
-  showCompare,
-  compareList,
-  onCompareToggle 
-}: { 
-  products: Product[]; 
-  loading?: boolean;
-  showCompare?: boolean;
-  compareList?: Product[];
-  onCompareToggle?: (product: Product) => void;
-}) {
+export function ProductGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {children}
+    </div>
+  );
+}
+
+export function ProductListView({ products, loading }: { products: Product[]; loading?: boolean }) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 gap-4">
@@ -511,13 +458,7 @@ export function ProductListView({
   return (
     <div className="grid grid-cols-1 gap-4">
       {products.map((product) => (
-        <ProductListCard 
-          key={product.id} 
-          product={product}
-          showCompare={showCompare}
-          isComparing={compareList?.some(p => p.id === product.id)}
-          onCompareToggle={onCompareToggle}
-        />
+        <ProductListCard key={product._id} product={product} />
       ))}
     </div>
   );

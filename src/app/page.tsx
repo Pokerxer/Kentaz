@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Star, Shield, Crown, Gem, Flower2, Phone, MapPin, Instagram, MessageCircle, Brain, Mic, Heart, Eye } from "lucide-react";
+import { ArrowRight, Star, Shield, Crown, Gem, Flower2, Phone, MapPin, Instagram, MessageCircle, Brain, Mic, Heart, Eye, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { HeroSection } from "@/components/ui/HeroSection";
@@ -13,16 +13,14 @@ import { useState, useEffect, useRef } from "react";
 interface Product {
   id: string;
   title: string;
+  slug: string;
   description?: string;
-  handle?: string;
   thumbnail?: string;
   images?: { url: string }[];
-  price?: { amount: number; currency_code?: string };
-  variants?: { prices?: { amount: number }[]; inventory_quantity?: number }[];
-  collection?: { title: string; handle?: string };
-  tags?: { value: string }[];
-  rating?: number;
-  review_count?: number;
+  variants?: { price: number }[];
+  category?: string;
+  tags?: string[];
+  ratings?: { avg: number; count: number };
 }
 
 function formatPrice(amount: number, currency: string = 'ngn'): string {
@@ -30,14 +28,14 @@ function formatPrice(amount: number, currency: string = 'ngn'): string {
 }
 
 const categories = [
-  { name: "Male Fashion", handle: "male-fashion", image: "https://images.unsplash.com/photo-1617137968427-85924c800a22?w=600", count: 12 },
-  { name: "Female Fashion", handle: "female-fashion", image: "https://images.unsplash.com/photo-1485968579169-a6e9dc7d3a84?w=600", count: 18 },
-  { name: "Luxury Hair", handle: "human-hair", image: "https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?w=600", count: 8 },
-  { name: "Skincare", handle: "skincare", image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600", count: 15 },
-  { name: "Bags & Purses", handle: "bags", image: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=600", count: 10 },
-  { name: "Shoes", handle: "shoes", image: "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=600", count: 14 },
-  { name: "Accessories", handle: "accessories", image: "https://images.unsplash.com/photo-1611923134239-b9be5816e23c?w=600", count: 20 },
-  { name: "Perfumes", handle: "perfumes", image: "https://images.unsplash.com/photo-1541643600914-78b084683601?w=600", count: 9 },
+  { name: "Male Fashion", handle: "male-fashion", image: "https://images.unsplash.com/photo-1617137968427-85924c800a22?w=600", count: 12, description: "Premium suits, casuals, and accessories for the modern gentleman" },
+  { name: "Female Fashion", handle: "female-fashion", image: "https://images.unsplash.com/photo-1485968579169-a6e9dc7d3a84?w=600", count: 18, description: "Elegant dresses, gowns, and contemporary styles for her" },
+  { name: "Luxury Hair", handle: "human-hair", image: "https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?w=600", count: 8, description: "Premium virgin hair extensions and luxury wigs" },
+  { name: "Skincare", handle: "skincare", image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600", count: 15, description: "Luxury skincare and beauty products for radiant skin" },
+  { name: "Bags & Purses", handle: "bags", image: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=600", count: 10, description: "Designer bags and statement pieces" },
+  { name: "Shoes", handle: "shoes", image: "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=600", count: 14, description: "Handcrafted footwear for every occasion" },
+  { name: "Accessories", handle: "accessories", image: "https://images.unsplash.com/photo-1611923134239-b9be5816e23c?w=600", count: 20, description: "Watches, jewelry, and premium accessories" },
+  { name: "Perfumes", handle: "perfumes", image: "https://images.unsplash.com/photo-1541643600914-78b084683601?w=600", count: 9, description: "Signature fragrances that leave a lasting impression" },
 ];
 
 const services = [
@@ -219,13 +217,16 @@ function ServicesSection() {
 
 function CategoriesSection() {
   return (
-    <section className="py-16 md:py-24 bg-white overflow-hidden">
+    <section className="py-16 md:py-24 bg-gradient-to-b from-white to-[#FAFAFA] overflow-hidden">
       <div className="container mx-auto px-4">
         <ScrollReveal>
           <div className="text-center mb-12 md:mb-16">
-            <p className="text-[#C9A84C] font-medium mb-3 tracking-widest uppercase text-sm">Explore</p>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#C9A84C]/10 text-[#C9A84C] text-sm font-medium mb-4">
+              <Sparkles className="h-4 w-4" />
+              Curated Collections
+            </div>
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-[#1A1A1A] mb-4">Shop by Category</h2>
-            <p className="text-[#6B6B6B] text-base max-w-2xl mx-auto">Discover our curated collections across fashion, beauty, and lifestyle</p>
+            <p className="text-[#6B6B6B] text-base max-w-2xl mx-auto">Explore our exquisite range of luxury fashion, beauty, and lifestyle products</p>
           </div>
         </ScrollReveal>
 
@@ -234,45 +235,80 @@ function CategoriesSection() {
             <ScrollReveal
               key={category.name}
               direction="up"
-              delay={index * 100}
+              delay={index * 80}
               className={index === 0 || index === 5 ? "md:col-span-2 md:row-span-2" : ""}
             >
               <Link
                 href={`/products?collection=${category.handle}`}
-                className={`group relative block ${
-                  index === 0 || index === 5 ? "aspect-[4/3]" : "aspect-square"
+                className={`group relative block overflow-hidden rounded-3xl ${
+                  index === 0 || index === 5 ? "aspect-[4/3]" : "aspect-[4/5]"
                 }`}
               >
-                <div className="absolute inset-0 bg-[#1A1A1A] rounded-2xl overflow-hidden">
+                {/* Background Image */}
+                <div className="absolute inset-0">
                   <Image
                     src={category.image}
                     alt={category.name}
                     fill
-                    className="object-cover opacity-80 transition-all duration-700 group-hover:opacity-100 group-hover:scale-110"
+                    className="object-cover transition-all duration-1000 ease-out group-hover:scale-125"
                   />
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A]/90 via-[#1A1A1A]/40 to-transparent" />
+
+                {/* Multi-layer Gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10 opacity-80 group-hover:opacity-90 transition-opacity duration-500" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700" />
+
+                {/* Glass Morphism Overlay */}
+                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-500" />
+
+                {/* Animated Border */}
+                <div className="absolute inset-0 rounded-3xl border border-white/20 group-hover:border-[#C9A84C]/60 group-hover:shadow-[0_0_30px_rgba(201,168,76,0.2)] transition-all duration-500" />
                 
-                <div className="absolute inset-0 border border-white/10 group-hover:border-[#C9A84C]/40 transition-all duration-500 rounded-2xl" />
-                
+                {/* Corner Accents */}
+                <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-white/40 rounded-tl-3xl group-hover:border-[#C9A84C] group-hover:w-full group-hover:h-full group-hover:rounded-3xl group-hover:border-0 group-hover:bg-[#C9A84C]/5 transition-all duration-700" />
+
+                {/* Content */}
                 <div className="absolute inset-0 flex flex-col justify-end p-5 md:p-6">
                   <div className="transform transition-all duration-500 group-hover:-translate-y-2">
-                    <span className="inline-block px-3 py-1 mb-3 text-[10px] font-medium tracking-widest uppercase text-[#C9A84C] bg-[#C9A84C]/20 rounded-full backdrop-blur-sm">
-                      {category.count} Products
-                    </span>
-                    <h3 className="text-xl md:text-2xl lg:text-3xl font-bold text-white mb-2 group-hover:text-[#E8D48A] transition-colors duration-300">
+                    {/* Animated Line */}
+                    <div className="w-12 h-0.5 bg-[#C9A84C] mb-4 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-700 ease-out" />
+
+                    {/* Product Count Badge */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold tracking-widest uppercase text-white bg-white/10 backdrop-blur-md rounded-full border border-white/10 group-hover:bg-[#C9A84C] group-hover:text-black group-hover:border-[#C9A84C] transition-all duration-300">
+                        <span className="w-1.5 h-1.5 bg-current rounded-full animate-pulse" />
+                        {category.count} Products
+                      </span>
+                    </div>
+
+                    {/* Category Name */}
+                    <h3 className="text-lg md:text-xl lg:text-2xl font-bold text-white mb-2 group-hover:text-[#E8D48A] transition-colors duration-300 leading-tight">
                       {category.name}
                     </h3>
-                    <div className="flex items-center gap-2 text-white/0 group-hover:text-white/70 transition-all duration-500 delay-75">
-                      <span className="text-sm font-medium">Explore</span>
-                      <ArrowRight className="h-4 w-4 transform group-hover:translate-x-2 transition-transform duration-300" />
+
+                    {/* Description */}
+                    <p className="text-white/60 text-xs mb-4 line-clamp-2 transform opacity-0 group-hover:opacity-100 transition-all duration-500 delay-100">
+                      {category.description}
+                    </p>
+
+                    {/* Explore Link */}
+                    <div className="flex items-center gap-2 text-white/0 group-hover:text-white/90 transition-all duration-500 delay-150">
+                      <span className="text-xs font-medium tracking-wide flex items-center gap-2">
+                        Shop Now
+                        <span className="w-5 h-px bg-current" />
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5 transform group-hover:translate-x-2 transition-transform duration-300" />
                     </div>
                   </div>
                 </div>
 
-                <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 delay-100">
-                  <ArrowRight className="h-4 w-4 text-white" />
+                {/* Floating Icon on Hover */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-[#C9A84C]/20 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 delay-100 transform scale-50 group-hover:scale-100">
+                  <ArrowRight className="h-6 w-6 text-[#C9A84C]" />
                 </div>
+
+                {/* Bottom Shine */}
+                <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-[#C9A84C]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
               </Link>
             </ScrollReveal>
           ))}
@@ -282,9 +318,9 @@ function CategoriesSection() {
           <div className="mt-12 md:mt-16 text-center">
             <Link
               href="/products"
-              className="inline-flex items-center gap-3 px-8 py-4 rounded-full border-2 border-[#1A1A1A] text-[#1A1A1A] font-medium hover:bg-[#1A1A1A] hover:text-white transition-all duration-300 group"
+              className="group inline-flex items-center gap-3 px-8 py-4 rounded-full bg-[#1A1A1A] text-white font-medium hover:bg-[#C9A84C] hover:text-black transition-all duration-300 shadow-lg shadow-[#1A1A1A]/20 hover:shadow-[#C9A84C]/30"
             >
-              View All Products
+              <span>View All Products</span>
               <ArrowRight className="h-5 w-5 transform group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
@@ -295,7 +331,7 @@ function CategoriesSection() {
 }
 
 function FeaturedProductsSection() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [quickViewProduct, setQuickViewProduct] = useState<any>(null);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -315,12 +351,12 @@ function FeaturedProductsSection() {
   }, []);
 
   const getTag = (product: Product): string => {
-    if (product.tags?.some(t => t.value === 'bestseller')) return 'Best Seller';
-    if (product.tags?.some(t => t.value === 'featured')) return 'Featured';
+    if (product.tags?.some(t => t === 'bestseller')) return 'Best Seller';
+    if (product.tags?.some(t => t === 'featured')) return 'Featured';
     return 'New';
   };
 
-  const getRating = (product: Product): number => product.rating || 4.5;
+  const getRating = (product: Product): number => product.ratings?.avg || 4.5;
 
   return (
     <section className="py-16 md:py-24 bg-white">
@@ -352,7 +388,7 @@ function FeaturedProductsSection() {
             {products.map((product, index) => (
               <ScrollReveal key={product.id} direction="up" delay={index * 100}>
                 <Link
-                  href={`/products/${product.handle || product.id}`}
+                  href={`/products/${product.slug}`}
                   className="group block"
                 >
                   <div className="relative rounded-2xl overflow-hidden bg-white border border-[#E5E5E5] hover:border-[#C9A84C]/50 shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
@@ -398,13 +434,13 @@ function FeaturedProductsSection() {
                         {[...Array(5)].map((_, i) => (
                           <Star key={i} className={`h-3.5 w-3.5 ${i < Math.round(getRating(product)) ? 'fill-[#C9A84C] text-[#C9A84C]' : 'fill-[#E5E5E5] text-[#E5E5E5]'}`} />
                         ))}
-                        <span className="ml-1 text-xs text-[#6B6B6B]">({product.review_count || 0})</span>
+                        <span className="ml-1 text-xs text-[#6B6B6B]">({product.ratings?.count || 0})</span>
                       </div>
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-baseline gap-2">
                           <span className="text-lg md:text-xl font-bold text-[#C9A84C]">
-                            {formatPrice(product.price?.amount || product.variants?.[0]?.prices?.[0]?.amount || 0)}
+                            {formatPrice(product.variants?.[0]?.price || 0)}
                           </span>
                         </div>
                       </div>

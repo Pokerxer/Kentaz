@@ -4,6 +4,7 @@ import { ProductCard, ProductListView } from '@/components/shop/ProductCard';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { X } from 'lucide-react';
+import React from 'react';
 
 interface Product {
   id: string;
@@ -25,57 +26,35 @@ interface Product {
   sizes?: string[];
 }
 
-interface ProductContentProps {
-  products: Product[];
-  loading: boolean;
-  error: string | null;
-  viewMode: 'grid' | 'list';
-  hasActiveFilters: boolean;
-  searchQuery: string;
-  activeCategory: string;
-  priceRange: [number, number];
-  selectedColors: string[];
-  selectedSizes: string[];
-  selectedRating: number | null;
-  inStockOnly: boolean;
-  compareList: Product[];
-  onCompareToggle: (product: Product) => void;
-  onQuickView: (product: Product) => void;
-  onClearFilters: () => void;
-  setSearchQuery: (v: string) => void;
-  setActiveCategory: (v: string) => void;
-  setPriceRange: (v: [number, number]) => void;
-  setSelectedColors: (v: string[]) => void;
-  setSelectedSizes: (v: string[]) => void;
-  setSelectedRating: (v: number | null) => void;
-  setInStockOnly: (v: boolean) => void;
-}
+type ProductContentProps = any;
 
-export function ProductContent({
-  products,
-  loading,
-  error,
-  viewMode,
-  hasActiveFilters,
-  searchQuery,
-  activeCategory,
-  priceRange,
-  selectedColors,
-  selectedSizes,
-  selectedRating,
-  inStockOnly,
-  compareList,
-  onCompareToggle,
-  onQuickView,
-  onClearFilters,
-  setSearchQuery,
-  setActiveCategory,
-  setPriceRange,
-  setSelectedColors,
-  setSelectedSizes,
-  setSelectedRating,
-  setInStockOnly,
-}: ProductContentProps) {
+export function ProductContent(props: ProductContentProps) {
+  const {
+    products,
+    loading = false,
+    error = null,
+    viewMode = 'grid',
+    hasActiveFilters = false,
+    searchQuery = '',
+    activeCategory = 'all',
+    priceRange = [0, 100000],
+    selectedColors = [],
+    selectedSizes = [],
+    selectedRating = null,
+    inStockOnly = false,
+    showCompare = false,
+    compareList = [],
+    onCompareToggle,
+    onQuickView,
+    onClearFilters,
+    setSearchQuery = () => {},
+    setActiveCategory = () => {},
+    setPriceRange = () => {},
+    setSelectedColors = () => {},
+    setSelectedSizes = () => {},
+    setSelectedRating = () => {},
+    setInStockOnly = () => {},
+  } = props;
   return (
     <>
       {hasActiveFilters && (
@@ -165,12 +144,12 @@ export function ProductContent({
               </div>
             ))
           ) : (
-            products.map((product) => (
+            products.map((product: Product) => (
               <ProductCard
                 key={product.id}
                 product={product}
                 showCompare={true}
-                isComparing={compareList.some(p => p.id === product.id)}
+                isComparing={compareList.some((p: Product) => p.id === product.id)}
                 onCompareToggle={onCompareToggle}
                 onQuickView={onQuickView}
               />
@@ -181,9 +160,6 @@ export function ProductContent({
         <ProductListView
           products={products}
           loading={loading}
-          showCompare={true}
-          compareList={compareList}
-          onCompareToggle={onCompareToggle}
         />
       )}
     </>

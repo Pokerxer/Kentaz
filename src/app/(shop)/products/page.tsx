@@ -586,7 +586,7 @@ function ProductsPage() {
               inStockOnly={inStockOnly}
               compareList={compareList}
               onCompareToggle={handleCompareToggle}
-              onQuickView={(p) => { setQuickViewProduct(p); setIsQuickViewOpen(true); }}
+              onQuickView={(p: any) => { setQuickViewProduct(p); setIsQuickViewOpen(true); }}
               onClearFilters={clearFilters}
               setSearchQuery={setSearchQuery}
               setActiveCategory={setActiveCategory}

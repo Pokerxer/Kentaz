@@ -489,8 +489,10 @@ export default function CheckoutPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 text-sm truncate">{product.title}</p>
-                          {variant && (
-                            <p className="text-xs text-gray-500">{variant.title}</p>
+                          {variant && (variant.size || variant.color) && (
+                            <p className="text-xs text-gray-500">
+                              {[variant.size, variant.color].filter(Boolean).join(' / ')}
+                            </p>
                           )}
                           <div className="flex items-center justify-between mt-1">
                             <span className="text-xs text-gray-500">Qty: {quantity}</span>

@@ -1,14 +1,16 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-interface Product {
+interface WishlistProduct {
   id: string;
   title: string;
-  thumbnail?: string;
   handle?: string;
+  thumbnail?: string;
+  images?: { url: string }[];
+  price?: number;
 }
 
 export interface WishlistState {
-  items: Product[];
+  items: WishlistProduct[];
 }
 
 const initialState: WishlistState = {
@@ -22,7 +24,7 @@ const wishlistSlice = createSlice({
     loadState: (state, action: PayloadAction<WishlistState>) => {
       state.items = action.payload.items;
     },
-    addToWishlist: (state, action: PayloadAction<Product>) => {
+    addToWishlist: (state, action: PayloadAction<WishlistProduct>) => {
       const exists = state.items.find(item => item.id === action.payload.id);
       if (!exists) {
         state.items.push(action.payload);
