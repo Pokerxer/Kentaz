@@ -4,27 +4,16 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
-import { CreditCard, Lock, ArrowLeft, Check, ChevronRight, Truck, ShoppingBag, User, MapPin, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { CreditCard, Lock, ArrowLeft, Check, ChevronRight, Truck, ShoppingBag, User, MapPin, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { clearCart } from '@/store/cartSlice';
 import { formatPrice } from '@/lib/utils';
+import { usePaystack, useShippingInfo, getDeliveryCost, calculateTotals } from '@/lib/paystack';
 
 type CheckoutStep = 'shipping' | 'payment' | 'confirmation';
-
-interface ShippingInfo {
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  deliveryMethod: 'standard' | 'express';
-}
 
 export default function CheckoutPage() {
   const { data: session, status } = useSession();
@@ -33,41 +22,26 @@ export default function CheckoutPage() {
   const { items, total } = useAppSelector((state) => state.cart);
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
+  const [paystackRef, setPaystackRef] = useState('');
+  
+  const { initializePayment, isLoading: paystackLoading, error: paystackError, isReady: paystackReady } = usePaystack();
+  const { shippingInfo, updateShippingInfo, isValid: isShippingValid } = useShippingInfo();
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login?callbackUrl=/checkout');
     }
     if (session?.user) {
-      setShippingInfo(prev => ({
-        ...prev,
-        email: session.user.email || prev.email,
-        firstName: (session.user as any).name?.split(' ')[0] || prev.firstName,
-        lastName: (session.user as any).name?.split(' ').slice(1).join(' ') || prev.lastName,
-      }));
+      updateShippingInfo('email', session.user.email || '');
+      updateShippingInfo('firstName', (session.user as any).name?.split(' ')[0] || '');
+      updateShippingInfo('lastName', (session.user as any).name?.split(' ').slice(1).join(' ') || '');
     }
   }, [status, session, router]);
-  
-  const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
-    email: '',
-    firstName: '',
-    lastName: '',
-    phone: '',
-    address: '',
-    city: '',
-    state: '',
-    postalCode: '',
-    deliveryMethod: 'standard',
-  });
 
-  const [paymentInfo, setPaymentInfo] = useState({
-    cardNumber: '',
-    cardExpiry: '',
-    cardCvv: '',
-    cardName: '',
-  });
+  const deliveryCost = getDeliveryCost(shippingInfo.deliveryMethod, total);
+  const subtotal = total;
+  const { tax, total: grandTotal } = calculateTotals(subtotal, deliveryCost);
 
   const getPrice = (product: any) => {
     if (!product?.price) return 0;
@@ -75,59 +49,34 @@ export default function CheckoutPage() {
     return product.price;
   };
 
-  const deliveryCost = shippingInfo.deliveryMethod === 'express' ? 5000 : total >= 50000 ? 0 : 2500;
-  const subtotal = total;
-  const tax = subtotal * 0.075;
-  const grandTotal = subtotal + deliveryCost + tax;
-
-  const handleShippingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setShippingInfo({ ...shippingInfo, [e.target.name]: e.target.value });
-  };
-
-  const handlePaymentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    if (name === 'cardNumber') {
-      const formatted = value.replace(/\D/g, '').replace(/(\d{4})/g, '$1 ').trim();
-      setPaymentInfo({ ...paymentInfo, [name]: formatted.slice(0, 19) });
-    } else if (name === 'cardExpiry') {
-      const formatted = value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1/$2').trim();
-      setPaymentInfo({ ...paymentInfo, [name]: formatted.slice(0, 5) });
-    } else if (name === 'cardCvv') {
-      setPaymentInfo({ ...paymentInfo, [name]: value.replace(/\D/g, '').slice(0, 4) });
-    } else {
-      setPaymentInfo({ ...paymentInfo, [name]: value });
-    }
-  };
-
-  const validateShipping = () => {
-    return Object.values(shippingInfo).every(val => val !== '');
-  };
-
-  const validatePayment = () => {
-    return paymentInfo.cardNumber.length >= 19 && 
-           paymentInfo.cardExpiry.length === 5 && 
-           paymentInfo.cardCvv.length >= 3 &&
-           paymentInfo.cardName !== '';
-  };
-
   const handleContinueToPayment = () => {
-    if (validateShipping()) {
+    if (isShippingValid) {
       setCurrentStep('payment');
     }
   };
 
-  const handlePlaceOrder = async () => {
-    if (!validatePayment()) return;
+  const handlePlaceOrder = () => {
+    if (!paystackReady) return;
     setLoading(true);
 
-    // Simulate payment processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const newOrderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
-    setOrderNumber(newOrderNumber);
-    dispatch(clearCart());
-    setLoading(false);
-    setCurrentStep('confirmation');
+    initializePayment({
+      email: shippingInfo.email,
+      amount: grandTotal,
+      firstName: shippingInfo.firstName,
+      lastName: shippingInfo.lastName,
+      phone: shippingInfo.phone,
+      onSuccess: (reference) => {
+        setPaystackRef(reference.reference);
+        const newOrderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
+        setOrderNumber(newOrderNumber);
+        dispatch(clearCart());
+        setLoading(false);
+        setCurrentStep('confirmation');
+      },
+      onClose: () => {
+        setLoading(false);
+      },
+    });
   };
 
   if (items.length === 0 && currentStep !== 'confirmation') {
@@ -242,7 +191,7 @@ export default function CheckoutPage() {
                       name="email"
                       type="email"
                       value={shippingInfo.email}
-                      onChange={handleShippingChange}
+                      onChange={(e) => updateShippingInfo(e.target.name, e.target.value)}
                       required
                       placeholder="you@example.com"
                     />
@@ -251,7 +200,7 @@ export default function CheckoutPage() {
                       name="phone"
                       type="tel"
                       value={shippingInfo.phone}
-                      onChange={handleShippingChange}
+                      onChange={(e) => updateShippingInfo(e.target.name, e.target.value)}
                       required
                       placeholder="+234 xxx xxx xxxx"
                     />
@@ -262,14 +211,14 @@ export default function CheckoutPage() {
                       label="First Name"
                       name="firstName"
                       value={shippingInfo.firstName}
-                      onChange={handleShippingChange}
+                      onChange={(e) => updateShippingInfo(e.target.name, e.target.value)}
                       required
                     />
                     <Input
                       label="Last Name"
                       name="lastName"
                       value={shippingInfo.lastName}
-                      onChange={handleShippingChange}
+                      onChange={(e) => updateShippingInfo(e.target.name, e.target.value)}
                       required
                     />
                   </div>
@@ -278,7 +227,7 @@ export default function CheckoutPage() {
                     label="Delivery Address"
                     name="address"
                     value={shippingInfo.address}
-                    onChange={handleShippingChange}
+                    onChange={(e) => updateShippingInfo(e.target.name, e.target.value)}
                     required
                     placeholder="123 Main Street, Apt 4B"
                   />
@@ -288,7 +237,7 @@ export default function CheckoutPage() {
                       label="City"
                       name="city"
                       value={shippingInfo.city}
-                      onChange={handleShippingChange}
+                      onChange={(e) => updateShippingInfo(e.target.name, e.target.value)}
                       required
                       placeholder="Lagos"
                     />
@@ -296,7 +245,7 @@ export default function CheckoutPage() {
                       label="State"
                       name="state"
                       value={shippingInfo.state}
-                      onChange={handleShippingChange}
+                      onChange={(e) => updateShippingInfo(e.target.name, e.target.value)}
                       required
                       placeholder="Lagos"
                     />
@@ -304,7 +253,7 @@ export default function CheckoutPage() {
                       label="Postal Code"
                       name="postalCode"
                       value={shippingInfo.postalCode}
-                      onChange={handleShippingChange}
+                      onChange={(e) => updateShippingInfo(e.target.name, e.target.value)}
                       required
                       placeholder="100001"
                     />
@@ -324,7 +273,7 @@ export default function CheckoutPage() {
                           name="deliveryMethod"
                           value="standard"
                           checked={shippingInfo.deliveryMethod === 'standard'}
-                          onChange={() => setShippingInfo({ ...shippingInfo, deliveryMethod: 'standard' })}
+                          onChange={() => updateShippingInfo('deliveryMethod', 'standard')}
                           className="mt-1"
                         />
                         <div className="flex-1">
@@ -349,7 +298,7 @@ export default function CheckoutPage() {
                           name="deliveryMethod"
                           value="express"
                           checked={shippingInfo.deliveryMethod === 'express'}
-                          onChange={() => setShippingInfo({ ...shippingInfo, deliveryMethod: 'express' })}
+                          onChange={() => updateShippingInfo('deliveryMethod', 'express')}
                           className="mt-1"
                         />
                         <div className="flex-1">
@@ -383,80 +332,55 @@ export default function CheckoutPage() {
                 </CardHeader>
                 <CardContent className="space-y-6 pt-6">
                   <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-xl p-6 mb-6">
-                    <div className="flex items-center justify-between mb-8">
-                      <Image src="/chip.png" alt="Chip" width={40} height={32} className="opacity-80" />
-                      <Lock className="h-5 w-5 opacity-60" />
+                    <div className="flex items-center justify-between mb-4">
+                      <Lock className="h-6 w-6 opacity-60" />
+                      <span className="text-sm font-medium opacity-80">Powered by Paystack</span>
                     </div>
-                    <div className="font-mono text-xl tracking-wider mb-4">
-                      {paymentInfo.cardNumber || '•••• •••• •••• ••••'}
-                    </div>
-                    <div className="flex items-end justify-between">
-                      <div>
-                        <p className="text-xs text-gray-400 uppercase">Card Holder</p>
-                        <p className="font-medium">{paymentInfo.cardName || shippingInfo.firstName + ' ' + shippingInfo.lastName}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-400 uppercase">Expires</p>
-                        <p className="font-medium">{paymentInfo.cardExpiry || 'MM/YY'}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Input
-                    label="Card Number"
-                    name="cardNumber"
-                    value={paymentInfo.cardNumber}
-                    onChange={handlePaymentChange}
-                    required
-                    placeholder="4242 4242 4242 4242"
-                    maxLength={19}
-                  />
-
-                  <Input
-                    label="Cardholder Name"
-                    name="cardName"
-                    value={paymentInfo.cardName}
-                    onChange={handlePaymentChange}
-                    required
-                    placeholder="John Doe"
-                  />
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      label="Expiry Date"
-                      name="cardExpiry"
-                      value={paymentInfo.cardExpiry}
-                      onChange={handlePaymentChange}
-                      required
-                      placeholder="MM/YY"
-                      maxLength={5}
-                    />
-                    <div className="relative">
-                      <Input
-                        label="CVV"
-                        name="cardCvv"
-                        type={showPassword ? 'text' : 'password'}
-                        value={paymentInfo.cardCvv}
-                        onChange={handlePaymentChange}
-                        required
-                        placeholder="•••"
-                        maxLength={4}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                    <div className="text-center py-8">
+                      <p className="text-lg opacity-80 mb-2">Total Amount</p>
+                      <p className="text-4xl font-bold">{formatPrice(grandTotal)}</p>
                     </div>
                   </div>
 
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
                     <Lock className="h-5 w-5 text-amber-600 mt-0.5" />
                     <div>
-                      <p className="font-medium text-amber-800">Test Mode</p>
-                      <p className="text-sm text-amber-700">Use card number 4242 4242 4242 4242 with any future expiry and CVV</p>
+                      <p className="font-medium text-amber-800">Secure Payment</p>
+                      <p className="text-sm text-amber-700">You'll be redirected to Paystack's secure payment page to complete your order</p>
+                    </div>
+                  </div>
+
+                  {paystackError && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-red-800">Payment Error</p>
+                        <p className="text-sm text-red-700">{paystackError}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-4 border-t border-gray-100 pt-6">
+                    <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl">
+                      <MapPin className="h-5 w-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-gray-900">Shipping to</p>
+                        <p className="text-sm text-gray-500">
+                          {shippingInfo.firstName} {shippingInfo.lastName}<br />
+                          {shippingInfo.address}<br />
+                          {shippingInfo.city}, {shippingInfo.state} {shippingInfo.postalCode}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl">
+                      <Truck className="h-5 w-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-gray-900">Delivery Method</p>
+                        <p className="text-sm text-gray-500">
+                          {shippingInfo.deliveryMethod === 'express' ? 'Express Delivery (1-2 days)' : 'Standard Delivery (3-5 days)'}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -464,7 +388,13 @@ export default function CheckoutPage() {
                     <Button variant="outline" size="lg" onClick={() => setCurrentStep('shipping')}>
                       Back to Shipping
                     </Button>
-                    <Button size="lg" onClick={handlePlaceOrder} loading={loading} disabled={!validatePayment()}>
+                    <Button 
+                      size="lg" 
+                      onClick={handlePlaceOrder} 
+                      loading={loading || paystackLoading} 
+                      disabled={!paystackReady || !isShippingValid}
+                      className="px-8"
+                    >
                       <Lock className="h-4 w-4 mr-2" />
                       Pay {formatPrice(grandTotal)}
                     </Button>
@@ -484,7 +414,13 @@ export default function CheckoutPage() {
                   
                   <div className="bg-gray-50 rounded-xl p-6 mb-8 max-w-md mx-auto">
                     <p className="text-sm text-gray-500 mb-1">Order Number</p>
-                    <p className="text-xl font-mono font-bold text-gray-900">{orderNumber}</p>
+                    <p className="text-xl font-mono font-bold text-gray-900 mb-4">{orderNumber}</p>
+                    {paystackRef && (
+                      <>
+                        <p className="text-sm text-gray-500 mb-1">Payment Reference</p>
+                        <p className="text-sm font-mono text-gray-700">{paystackRef}</p>
+                      </>
+                    )}
                   </div>
 
                   <div className="space-y-4 text-left max-w-md mx-auto mb-8">

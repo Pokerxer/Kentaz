@@ -7,31 +7,27 @@ import { Button } from "@/components/ui/Button";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { HeroSection } from "@/components/ui/HeroSection";
 import { QuickViewModal } from "@/components/cart/QuickViewModal";
+import { getFeaturedProducts } from "@/lib/api/products";
 import { useState, useEffect, useRef } from "react";
 
-const featuredProducts = [
-  {
-    title: "Brazilian Body Wave Wig",
-    price: "₦149,000",
-    originalPrice: "₦189,000",
-    image: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600",
-    tag: "Best Seller",
-  },
-  {
-    title: "Royal Oud Perfume",
-    price: "₦75,000",
-    originalPrice: "₦95,000",
-    image: "https://images.unsplash.com/photo-1541643600914-78b084683601?w=600",
-    tag: "Featured",
-  },
-  {
-    title: "Italian Leather Tote",
-    price: "₦85,000",
-    originalPrice: "₦120,000",
-    image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600",
-    tag: "New",
-  },
-];
+interface Product {
+  id: string;
+  title: string;
+  description?: string;
+  handle?: string;
+  thumbnail?: string;
+  images?: { url: string }[];
+  price?: { amount: number; currency_code?: string };
+  variants?: { prices?: { amount: number }[]; inventory_quantity?: number }[];
+  collection?: { title: string; handle?: string };
+  tags?: { value: string }[];
+  rating?: number;
+  review_count?: number;
+}
+
+function formatPrice(amount: number, currency: string = 'ngn'): string {
+  return '₦' + amount.toLocaleString('en-NG');
+}
 
 const categories = [
   { name: "Male Fashion", handle: "male-fashion", image: "https://images.unsplash.com/photo-1617137968427-85924c800a22?w=600", count: 12 },
@@ -61,17 +57,17 @@ const services = [
   },
 ];
 
-const testimonials = [
-  { name: "Amara J.", text: "The quality of the human hair wigs is amazing! Exactly what I was looking for.", rating: 5, image: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100" },
-  { name: "Chioma M.", text: "Fast delivery and excellent customer service. Will definitely order again!", rating: 5, image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100" },
-  { name: "Nadia K.", text: "Love the skincare products. My skin has never looked better.", rating: 5, image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100" },
-];
-
 const stats = [
   { value: "2.5K+", label: "Happy Customers" },
   { value: "500+", label: "Products" },
   { value: "30+", label: "Countries" },
   { value: "4.9", label: "Average Rating" },
+];
+
+const testimonials = [
+  { name: "Amara J.", text: "The quality of the human hair wigs is amazing! Exactly what I was looking for.", rating: 5, image: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100" },
+  { name: "Chioma M.", text: "Fast delivery and excellent customer service. Will definitely order again!", rating: 5, image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100" },
+  { name: "Nadia K.", text: "Love the skincare products. My skin has never looked better.", rating: 5, image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100" },
 ];
 
 function AnimatedCounter({ value }: { value: string }) {
@@ -243,11 +239,11 @@ function CategoriesSection() {
             >
               <Link
                 href={`/products?collection=${category.handle}`}
-                className={`group relative rounded-2xl overflow-hidden block ${
+                className={`group relative block ${
                   index === 0 || index === 5 ? "aspect-[4/3]" : "aspect-square"
                 }`}
               >
-                <div className="absolute inset-0 bg-[#1A1A1A]">
+                <div className="absolute inset-0 bg-[#1A1A1A] rounded-2xl overflow-hidden">
                   <Image
                     src={category.image}
                     alt={category.name}
@@ -257,7 +253,7 @@ function CategoriesSection() {
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A]/90 via-[#1A1A1A]/40 to-transparent" />
                 
-                <div className="absolute inset-0 border border-white/10 group-hover:border-[#C9A84C]/40 transition-all duration-500" />
+                <div className="absolute inset-0 border border-white/10 group-hover:border-[#C9A84C]/40 transition-all duration-500 rounded-2xl" />
                 
                 <div className="absolute inset-0 flex flex-col justify-end p-5 md:p-6">
                   <div className="transform transition-all duration-500 group-hover:-translate-y-2">
@@ -299,19 +295,32 @@ function CategoriesSection() {
 }
 
 function FeaturedProductsSection() {
+  const [products, setProducts] = useState<Product[]>([]);
   const [quickViewProduct, setQuickViewProduct] = useState<any>(null);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const products = featuredProducts.map((p) => ({
-    id: p.title.toLowerCase().replace(/\s+/g, '-'),
-    title: p.title,
-    thumbnail: p.image,
-    images: [{ url: p.image }],
-    price: { amount: parseFloat(p.price.replace(/[₦,]/g, '')), currency_code: 'ngn' },
-    original_price: parseFloat(p.originalPrice.replace(/[₦,]/g, '')),
-    variants: [{ prices: [{ amount: parseFloat(p.price.replace(/[₦,]/g, '')) }], inventory_quantity: 10 }],
-    handle: p.title.toLowerCase().replace(/\s+/g, '-'),
-  }));
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        const data = await getFeaturedProducts(6);
+        setProducts(data.products || []);
+      } catch (error) {
+        console.error('Failed to fetch products:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchProducts();
+  }, []);
+
+  const getTag = (product: Product): string => {
+    if (product.tags?.some(t => t.value === 'bestseller')) return 'Best Seller';
+    if (product.tags?.some(t => t.value === 'featured')) return 'Featured';
+    return 'New';
+  };
+
+  const getRating = (product: Product): number => product.rating || 4.5;
 
   return (
     <section className="py-16 md:py-24 bg-white">
@@ -328,68 +337,84 @@ function FeaturedProductsSection() {
           </div>
         </ScrollReveal>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-          {featuredProducts.map((product, index) => (
-            <ScrollReveal key={product.title} direction="up" delay={index * 150}>
-              <Link
-                href="/products"
-                className="group block"
-              >
-                <div className="relative rounded-2xl overflow-hidden bg-white border border-[#E5E5E5] hover:border-[#C9A84C]/50 shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
-                  <div className="relative aspect-square overflow-hidden bg-[#F5F5F0]">
-                    <Image
-                      src={product.image}
-                      alt={product.title}
-                      fill
-                      className="object-cover transition-transform duration-700 group-hover:scale-110"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A]/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="animate-pulse">
+                <div className="aspect-square bg-[#F5F5F0] rounded-2xl" />
+                <div className="mt-4 h-4 bg-[#F5F5F0] rounded w-3/4" />
+                <div className="mt-2 h-4 bg-[#F5F5F0] rounded w-1/2" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            {products.map((product, index) => (
+              <ScrollReveal key={product.id} direction="up" delay={index * 100}>
+                <Link
+                  href={`/products/${product.handle || product.id}`}
+                  className="group block"
+                >
+                  <div className="relative rounded-2xl overflow-hidden bg-white border border-[#E5E5E5] hover:border-[#C9A84C]/50 shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
+                    <div className="relative aspect-square overflow-hidden bg-[#F5F5F0]">
+                      <Image
+                        src={product.thumbnail || product.images?.[0]?.url || '/placeholder.jpg'}
+                        alt={product.title}
+                        fill
+                        className="object-cover transition-transform duration-700 group-hover:scale-110"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A]/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-                    <span className="absolute top-4 left-4 px-3 py-1 rounded-full bg-[#C9A84C] text-[10px] font-bold text-white tracking-wider uppercase">
-                      {product.tag}
-                    </span>
+                      <span className="absolute top-4 left-4 px-3 py-1 rounded-full bg-[#C9A84C] text-[10px] font-bold text-white tracking-wider uppercase">
+                        {getTag(product)}
+                      </span>
 
-                    <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 hover:bg-[#C9A84C] hover:text-white">
-                      <Heart className="h-5 w-5" />
-                    </button>
-
-                    <div className="absolute bottom-4 left-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
                       <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQuickViewProduct(products[index]); setIsQuickViewOpen(true); }}
-                        className="w-full py-3 rounded-xl bg-[#C9A84C] text-[#1A1A1A] font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#E8D48A] transition-colors shadow-lg"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 hover:bg-[#C9A84C] hover:text-white"
                       >
-                        <Eye className="h-4 w-4" />
-                        Quick View
+                        <Heart className="h-5 w-5" />
                       </button>
-                    </div>
-                  </div>
 
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h3 className="font-bold text-base md:text-lg text-[#1A1A1A] group-hover:text-[#C9A84C] transition-colors line-clamp-1">
-                        {product.title}
-                      </h3>
-                    </div>
-
-                    <div className="flex items-center gap-1 mb-3">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="h-3.5 w-3.5 fill-[#C9A84C] text-[#C9A84C]" />
-                      ))}
-                      <span className="ml-1 text-xs text-[#6B6B6B]">(128)</span>
+                      <div className="absolute bottom-4 left-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQuickViewProduct(product); setIsQuickViewOpen(true); }}
+                          className="w-full py-3 rounded-xl bg-[#C9A84C] text-[#1A1A1A] font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#E8D48A] transition-colors shadow-lg"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Quick View
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-lg md:text-xl font-bold text-[#C9A84C]">{product.price}</span>
-                        <span className="text-sm text-[#6B6B6B] line-through">{product.originalPrice}</span>
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h3 className="font-bold text-base md:text-lg text-[#1A1A1A] group-hover:text-[#C9A84C] transition-colors line-clamp-1">
+                          {product.title}
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center gap-1 mb-3">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className={`h-3.5 w-3.5 ${i < Math.round(getRating(product)) ? 'fill-[#C9A84C] text-[#C9A84C]' : 'fill-[#E5E5E5] text-[#E5E5E5]'}`} />
+                        ))}
+                        <span className="ml-1 text-xs text-[#6B6B6B]">({product.review_count || 0})</span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-lg md:text-xl font-bold text-[#C9A84C]">
+                            {formatPrice(product.price?.amount || product.variants?.[0]?.prices?.[0]?.amount || 0)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </Link>
-            </ScrollReveal>
-          ))}
-        </div>
+                </Link>
+              </ScrollReveal>
+            ))}
+          </div>
+        )}
       </div>
 
       <QuickViewModal

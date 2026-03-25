@@ -5,7 +5,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Minus, Plus, ShoppingCart, Check, Heart, Star, Truck, Shield, RotateCcw, ArrowRight } from 'lucide-react';
-import { useCart } from '@/contexts/CartContext';
+import { useAppDispatch } from '@/store/hooks';
+import { addToCart } from '@/store/cartSlice';
 import { formatPrice } from '@/lib/utils';
 
 interface ProductOption {
@@ -70,12 +71,12 @@ interface QuickViewModalProps {
 }
 
 export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps) {
+  const dispatch = useAppDispatch();
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [addedToCart, setAddedToCart] = useState(false);
-  const { addItem } = useCart();
 
   useEffect(() => {
     if (isOpen) {
@@ -158,15 +159,15 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   };
 
   const handleAddToCart = () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || !product) return;
     
-    addItem({
+    dispatch(addToCart({
       product: {
         id: product.id,
         title: product.title,
         thumbnail: product.thumbnail,
         handle: product.handle,
-        price: product.price,
+        price: product.price?.amount || 0,
       },
       quantity,
       variant: selectedVariant ? {
@@ -175,9 +176,10 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
         options: selectedOptions,
         price: selectedVariant.prices?.[0]?.amount,
       } : undefined,
-    });
+    }));
     
     setAddedToCart(true);
+    window.dispatchEvent(new CustomEvent('open-cart'));
     setTimeout(() => {
       setAddedToCart(false);
       onClose();

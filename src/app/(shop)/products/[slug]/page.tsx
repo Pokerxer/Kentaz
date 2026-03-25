@@ -5,10 +5,11 @@ import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, Plus, Heart, ShoppingCart, Truck, Shield, RotateCcw, Check, Star, Share2, ChevronRight, ZoomIn, Eye } from 'lucide-react';
-import { useCart } from '@/contexts/CartContext';
 import { useAppDispatch } from '@/store/hooks';
 import { addToWishlist } from '@/store/wishlistSlice';
+import { addToCart } from '@/store/cartSlice';
 import { formatPrice } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 interface ProductOption {
   name: string;
@@ -67,6 +68,8 @@ const COLOR_MAP: Record<string, string> = {
 
 export default function ProductDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const dispatch = useAppDispatch();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -78,8 +81,6 @@ export default function ProductDetailPage() {
   const [isZoomed, setIsZoomed] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const imageRef = useRef<HTMLDivElement>(null);
-  const { addItem } = useCart();
-  const dispatch = useAppDispatch();
 
   useEffect(() => {
     fetch(`http://localhost:9000/api/store/products/${params.slug}`)
@@ -191,15 +192,15 @@ export default function ProductDetailPage() {
   const isBestseller = product.tags?.some((t) => t.value === 'bestseller');
 
   const handleAddToCart = () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || !product) return;
     
-    addItem({
+    dispatch(addToCart({
       product: {
         id: product.id,
         title: product.title,
         thumbnail: product.thumbnail,
         handle: product.handle,
-        price: product.price,
+        price: selectedVariant?.prices?.[0]?.amount || product.price?.amount,
       },
       quantity,
       variant: selectedVariant ? {
@@ -208,9 +209,10 @@ export default function ProductDetailPage() {
         options: selectedOptions,
         price: selectedVariant.prices?.[0]?.amount,
       } : undefined,
-    });
+    }));
     
     setAddedToCart(true);
+    window.dispatchEvent(new CustomEvent('open-cart'));
     setTimeout(() => setAddedToCart(false), 2000);
   };
 

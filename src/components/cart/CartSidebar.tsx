@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Minus, Plus, ShoppingBag, Trash2, ArrowRight, Sparkles, Truck, Shield, Lock, Loader2 } from 'lucide-react';
-import { useAppSelector } from '@/store/hooks';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { removeFromCart, updateQuantity } from '@/store/cartSlice';
 import { formatPrice } from '@/lib/utils';
 
@@ -38,6 +38,7 @@ const COLOR_MAP: Record<string, string> = {
 
 export function CartSidebar() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const { data: session, status } = useSession();
   const { items, total } = useAppSelector((state) => state.cart);
   const [isOpen, setIsOpen] = useState(false);
@@ -88,7 +89,7 @@ export function CartSidebar() {
     const id = `${productId}-${JSON.stringify(variantOptions)}`;
     setRemovingId(id);
     setTimeout(() => {
-      removeFromCart(productId);
+      dispatch(removeFromCart(productId));
       setRemovingId(null);
     }, 300);
   };
@@ -289,7 +290,7 @@ export function CartSidebar() {
                                   <motion.button
                                     whileHover={{ backgroundColor: '#f3f4f6' }}
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => updateQuantity({ productId: item.product.id, quantity: item.quantity - 1 })}
+                                    onClick={() => dispatch(updateQuantity({ productId: item.product.id, quantity: item.quantity - 1 }))}
                                     className="p-2 transition-colors"
                                   >
                                     <Minus className="h-4 w-4 text-gray-600" />
@@ -305,7 +306,7 @@ export function CartSidebar() {
                                   <motion.button
                                     whileHover={{ backgroundColor: '#f3f4f6' }}
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => updateQuantity({ productId: item.product.id, quantity: item.quantity + 1 })}
+                                    onClick={() => dispatch(updateQuantity({ productId: item.product.id, quantity: item.quantity + 1 }))}
                                     className="p-2 transition-colors"
                                   >
                                     <Plus className="h-4 w-4 text-gray-600" />
